@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import logo from './logo.svg';
 import './App.css';
 
 function uint8ToHex(uint8Array: Uint8Array): string {
@@ -22,12 +21,12 @@ function App() {
       const reader = new FileReader();
       const chunkSize = 17;
       let offset = 0;
-     
+      let activeDevice = '';
+      let content = ''
+      let expected_length = 0;
 
       reader.onloadend = function() {
         if (reader.readyState === FileReader.DONE) {
-
-          // console.log('Chunk read:', reader.result);
 
           if (reader.result) {
             let row= new Uint8Array(reader.result as ArrayBuffer);
@@ -40,9 +39,32 @@ function App() {
               devices.set(device, [])
             }
 
-            devices.get(device).push(data);
             
-            
+            let count = uint8ToHex(row.slice(9, 11))
+            let starter = uint8ToHex(row.slice(9, 10))
+            let control = uint8ToHex(row.slice(10, 11))
+            let control_2 = uint8ToHex(row.slice(11, 12));
+            // Case: Start request
+            if (control_2 == '36' && activeDevice == '') {
+              console.log(timestamp, device, data, "Starting a request.")
+              content = ''
+              activeDevice = device
+              expected_length = Number('0x'+count)
+              content = content.concat((uint8ToHex(row.slice(13,17))))
+            } 
+            // Case: Following packets
+            else if (activeDevice == device && starter[0] == '2') {
+              content = content.concat((uint8ToHex(row.slice(10,17))))
+            }
+            // Case: Ending
+            else if (activeDevice != device && starter == '02' && control == '76') {
+              console.log('ending found')
+              activeDevice = ''
+              devices.get(device).push([content, content.length, expected_length])
+              expected_length = 0
+            }
+
+
             // console.log(uint8ToHex(timestamp), uint8ToHex(device), uint8ToHex(data))
 
           }
